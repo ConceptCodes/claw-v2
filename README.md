@@ -6,7 +6,7 @@ Inspired by the DJI Tello Drone SDK, this project aims to provide a similar, eas
 
 - **Claw Model:** [Robot Claw 3D Model](https://makerworld.com/en/models/1372133-big-robotic-armds3dmax-with-magnetic-gripper#profileId-1418848)  
   *(You can adapt the code for any servo-controlled robotic claw.)*
-- **Microcontroller:** [ESP32-Feather](https://www.adafruit.com/product/3405)  
+- **Microcontroller:** [ESP32 S2 Feather](https://www.adafruit.com/product/5000)  
   *(Built-in WiFi for network control.)*
 - **Servo Controller:** [8 Channel PWM Servo FeatherWing AddOn](https://www.adafruit.com/product/2928)  
   *(Controls the servos for the claw and arm.)*
