@@ -39,5 +39,8 @@ def send_command(command):
 
 send_command("wakeup")
 time.sleep(1)
-send_command("rotate 90")
+send_command("rotate 10")
 time.sleep(1)
+send_command("raise 10")
+time.sleep(1)
+send_command("lower 10")

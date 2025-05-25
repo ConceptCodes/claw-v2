@@ -27,20 +27,26 @@ valid_commands = movement_commands + base_commands
 
 PORT = 8889
 SDK_MODE_ENABLED = False
+DEFAULT_RESPONSE = "OK"
 
 # WiFi AP setup
 mac = wifi.radio.mac_address
 ap_ssid = "Claw-" + "".join(f"{b:02x}" for b in mac)
 wifi.radio.start_ap(ssid=ap_ssid, password="", max_connections=1)
 logger.info(f"Access Point started with SSID: {ap_ssid}")
-print(f"Connect to WiFi AP: {ap_ssid}")
 
 ip_addr = str(wifi.radio.ipv4_address_ap)
 pool = socketpool.SocketPool(wifi.radio)
 sock = pool.socket(pool.AF_INET, pool.SOCK_DGRAM)
 sock.bind((ip_addr, PORT))
 logger.info(f"Listening on {ip_addr}:{PORT}")
-print(f"Listening on {ip_addr}:{PORT}")
+
+
+BASE = kit.servo[0]
+ARM_L = kit.servo[1]
+ARM_R = kit.servo[2]
+CLAW = kit.servo[3]
+WRIST = kit.servo[4]
 
 
 def home():
@@ -50,23 +56,23 @@ def home():
 
 
 def move_arm(angle):
-    kit.servo[1].angle = int(angle)
-    kit.continuous_servo[1].throttle = 1
+    ARM_L.angle = int(angle)
+
+
+def move_wrist(angle):
+    WRIST.angle = int(angle)
 
 
 def rotate_base(angle):
-    kit.servo[0].angle = int(angle)
-    kit.continuous_servo[1].throttle = 1
+    BASE.angle = int(angle)
 
 
 def grab():
-    kit.servo[3].angle = 180
-    kit.continuous_servo[1].throttle = 1
+    CLAW.angle = 180
 
 
 def release():
-    kit.servo[3].angle = 0
-    kit.continuous_servo[1].throttle = 1
+    CLAW.angle = 0
 
 
 def get_state():
@@ -80,7 +86,6 @@ def enable_sdk_mode():
     global SDK_MODE_ENABLED
     SDK_MODE_ENABLED = True
     logger.info("SDK Mode enabled.")
-    print("SDK Mode enabled. You can now send commands.")
 
 
 def validate_command(command):
@@ -99,13 +104,17 @@ def validate_command(command):
     return tmp, angle
 
 
+def encode_response(res):
+    resp = bytearray()
+    resp.extend(res)
+    return resp
+
 # Main loop (UDP)
 udp_buffer = bytearray(1024)
 while True:
     n_bytes, addr = sock.recvfrom_into(udp_buffer)
     datastr = bytes(udp_buffer[:n_bytes]).decode().strip()
     logger.info(f"Received: {datastr} from {addr}")
-    print(f"Received: {datastr} from {addr}")
 
     try:
         cmd, angle = validate_command(datastr)
@@ -123,24 +132,17 @@ while True:
         }
         resp = None
         if cmd in movement_commands:
-          resp = cmd_map[cmd](angle)
+            resp = cmd_map[cmd](angle)
         else:
             resp = cmd_map[cmd]()
 
-        res = bytearray()
-        res.extend(resp if resp is not None else "OK")
+        res = encode_response(resp if resp is not None else DEFAULT_RESPONSE)
         sock.sendto(res, addr)
     except (InvalidCommandError, InvalidAngleError) as e:
         logger.error(e)
-        print(f"Error: {e}")
-
-        res = bytearray()
-        res.extend(f"Error: {e}")
+        res = encode_response(e)
         sock.sendto(res, addr)
     except Exception as e:
         logger.exception(e)
-        print(f"Error: {e}")
-
-        res = bytearray()
-        res.extend(f"Error: {e}")
+        res = encode_response(e)
         sock.sendto(res, addr)
