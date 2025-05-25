@@ -16,7 +16,7 @@ Inspired by the DJI Tello Drone SDK, this project aims to provide a similar, eas
 - **WiFi Access Point:**  
   - SSID: `Claw-XX:XX:XX:XX:XX:XX` (where `XX:XX:XX:XX:XX:XX` is the MAC address)  
   - *No password required*
-- **Device IP:** `192.168.10.1`
+- **Device IP:** `192.168.4.1`
 - **UDP Port:** `8889`
 
 ## Setup Instructions
@@ -56,7 +56,7 @@ import time
 def send_command(command):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(2)
-    sock.sendto(command.encode(), ('192.168.10.1', 8889))
+    sock.sendto(command.encode(), ('192.168.4.1', 8889))
     try:
         response, _ = sock.recvfrom(1024)
         decoded = response.decode()
@@ -73,6 +73,14 @@ send_command('rotate 90')
 time.sleep(1)
 ```
 
+**Device Logs**
+```
+Connect to WiFi AP: Claw-70041df18f38
+Listening on 192.168.4.1:8889
+Received: wakeup from ('192.168.4.2', 58741)
+SDK Mode enabled. You can now send commands.
+Received: rotate 10 from ('192.168.4.2', 52958)
+```
 ---
 
 Feel free to adapt the hardware or commands to suit your own robotic claw project!

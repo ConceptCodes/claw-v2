@@ -121,13 +121,14 @@ while True:
             "release": release,
             "state": get_state,
         }
+        resp = None
         if cmd in movement_commands:
-            cmd_map[cmd](angle)
-            resp = "OK"
+          resp = cmd_map[cmd](angle)
         else:
             resp = cmd_map[cmd]()
+
         res = bytearray()
-        res.extend(resp)
+        res.extend(resp if resp is not None else "OK")
         sock.sendto(res, addr)
     except (InvalidCommandError, InvalidAngleError) as e:
         logger.error(e)
