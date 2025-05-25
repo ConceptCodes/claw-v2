@@ -33,11 +33,15 @@ mac = wifi.radio.mac_address
 ap_ssid = "Claw-" + "".join(f"{b:02x}" for b in mac)
 wifi.radio.start_ap(ssid=ap_ssid, password="", max_connections=1)
 logger.info(f"Access Point started with SSID: {ap_ssid}")
+print(f"Connect to WiFi AP: {ap_ssid}")
 
-udp_host = str(wifi.radio.ipv4_address)
+ip_addr = str(wifi.radio.ipv4_address_ap)
 pool = socketpool.SocketPool(wifi.radio)
 sock = pool.socket(pool.AF_INET, pool.SOCK_DGRAM)
-sock.bind((udp_host, PORT))
+sock.bind((ip_addr, PORT))
+logger.info(f"Listening on {ip_addr}:{PORT}")
+print(f"Listening on {ip_addr}:{PORT}")
+
 
 def home():
     for ch in range(4):
@@ -76,6 +80,7 @@ def enable_sdk_mode():
     global SDK_MODE_ENABLED
     SDK_MODE_ENABLED = True
     logger.info("SDK Mode enabled.")
+    print("SDK Mode enabled. You can now send commands.")
 
 
 def validate_command(command):
@@ -95,34 +100,46 @@ def validate_command(command):
 
 
 # Main loop (UDP)
+udp_buffer = bytearray(1024)
 while True:
-    data, addr = sock.recvfrom_into(1024)
-    datastr = data.decode().strip()
+    n_bytes, addr = sock.recvfrom_into(udp_buffer)
+    datastr = bytes(udp_buffer[:n_bytes]).decode().strip()
     logger.info(f"Received: {datastr} from {addr}")
+    print(f"Received: {datastr} from {addr}")
 
     try:
         cmd, angle = validate_command(datastr)
         if not SDK_MODE_ENABLED and cmd != "wakeup":
             raise InvalidCommandError("SDK Mode is not enabled.")
         cmd_map = {
-      "wakeup": enable_sdk_mode,
-      "home": home,
-      "raise": move_arm,
-      "lower": move_arm,
-      "rotate": rotate_base,
-      "grab": grab,
-      "release": release,
-      "state": get_state,
-    }
+            "wakeup": enable_sdk_mode,
+            "home": home,
+            "raise": move_arm,
+            "lower": move_arm,
+            "rotate": rotate_base,
+            "grab": grab,
+            "release": release,
+            "state": get_state,
+        }
         if cmd in movement_commands:
             cmd_map[cmd](angle)
             resp = "OK"
         else:
             resp = cmd_map[cmd]()
-        sock.sendto(str(resp).encode(), addr)
+        res = bytearray()
+        res.extend(resp)
+        sock.sendto(res, addr)
     except (InvalidCommandError, InvalidAngleError) as e:
         logger.error(e)
-        sock.sendto(f"Error: {e}".encode(), addr)
+        print(f"Error: {e}")
+
+        res = bytearray()
+        res.extend(f"Error: {e}")
+        sock.sendto(res, addr)
     except Exception as e:
         logger.exception(e)
-        sock.sendto(f"Error: {e}".encode(), addr)
+        print(f"Error: {e}")
+
+        res = bytearray()
+        res.extend(f"Error: {e}")
+        sock.sendto(res, addr)
