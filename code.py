@@ -21,7 +21,7 @@ class InvalidAngleError(Exception):
 kit = ServoKit(channels=8)
 
 # Command definitions
-movement_commands = ["raise", "lower", "rotate"]
+movement_commands = ["raise", "lower", "rotate", "forward", "backward", "tilt"]
 base_commands = ["wakeup", "grab", "release", "home", "state"]
 valid_commands = movement_commands + base_commands
 
@@ -58,6 +58,8 @@ def home():
 def move_arm(angle):
     ARM_L.angle = int(angle)
 
+def move_arm_2(angle):
+    ARM_R.angle = int(angle)
 
 def move_wrist(angle):
     WRIST.angle = int(angle)
@@ -65,7 +67,6 @@ def move_wrist(angle):
 
 def rotate_base(angle):
     BASE.angle = int(angle)
-
 
 def grab():
     CLAW.angle = 180
@@ -125,6 +126,9 @@ while True:
             "home": home,
             "raise": move_arm,
             "lower": move_arm,
+            "forward": move_arm_2,
+            "backward": move_arm_2,
+            "tilt": move_wrist,
             "rotate": rotate_base,
             "grab": grab,
             "release": release,
