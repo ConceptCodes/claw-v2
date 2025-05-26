@@ -37,10 +37,11 @@ def send_command(command):
         sock.close()
 
 
-send_command("wakeup")
-time.sleep(1)
-send_command("rotate 10")
-time.sleep(1)
-send_command("raise 10")
-time.sleep(1)
-send_command("lower 10")
+# send_command("wakeup")
+# time.sleep(1)
+# send_command("home") # works
+# time.sleep(1)
+# send_command("rotate 0") # works
+# time.sleep(1)
+# send_command("rotate 180") # works
+# time.sleep(1)

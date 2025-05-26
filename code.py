@@ -5,7 +5,7 @@ from adafruit_servokit import ServoKit
 
 # Setup Logging
 logger = logging.getLogger("ClawRobot")
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.INFO)
 
 
 # Custom exceptions
@@ -50,16 +50,21 @@ WRIST = kit.servo[4]
 
 
 def home():
-    for ch in range(4):
-        kit.servo[ch].angle = 0
+    BASE.angle = 90
+    ARM_L.angle = 90
+    ARM_R.angle = 90
+    WRIST.angle = 90
+    CLAW.angle = 0
     logger.info("All servos moved to home position.")
 
 
 def move_arm(angle):
     ARM_L.angle = int(angle)
 
+
 def move_arm_2(angle):
     ARM_R.angle = int(angle)
+
 
 def move_wrist(angle):
     WRIST.angle = int(angle)
@@ -67,6 +72,7 @@ def move_wrist(angle):
 
 def rotate_base(angle):
     BASE.angle = int(angle)
+
 
 def grab():
     CLAW.angle = 180
@@ -89,28 +95,31 @@ def enable_sdk_mode():
     logger.info("SDK Mode enabled.")
 
 
-def validate_command(command):
-    parts = command.split()
-    tmp = parts[0]
+def validate_command(request):
+    parts = request.strip().split(" ")
+    cmd = parts[0].strip().lower()
     angle = parts[1] if len(parts) > 1 else None
 
-    if tmp not in valid_commands:
-        raise InvalidCommandError(f"Invalid command: {tmp}")
+    if cmd not in valid_commands:
+        raise InvalidCommandError(f"Invalid command: {cmd}")
 
-    if tmp in movement_commands and (
-        angle is None or not angle.isdigit() or not (0 <= int(angle) <= 180)
+    if cmd in movement_commands and (
+        angle is None or not angle.isdigit() or not (int(angle) <= 180)
     ):
-        raise InvalidAngleError(f"Invalid angle for command {tmp}: {angle}")
+        raise InvalidAngleError(f"Invalid angle for command {cmd}: {angle}")
 
-    return tmp, angle
+    return cmd, angle
 
 
 def encode_response(res):
+    # string.decode() is not available in CircuitPython Espressif boards
+    # so we use bytearray
     resp = bytearray()
-    resp.extend(res)
+    resp.extend(str(res))
     return resp
 
-# Main loop (UDP)
+
+# Main Loop
 udp_buffer = bytearray(1024)
 while True:
     n_bytes, addr = sock.recvfrom_into(udp_buffer)
@@ -119,15 +128,19 @@ while True:
 
     try:
         cmd, angle = validate_command(datastr)
+        angle = int(angle) if angle is not None else None
+
+        logger.info(f"Executing command: {cmd} with angle: {angle}")
+
         if not SDK_MODE_ENABLED and cmd != "wakeup":
             raise InvalidCommandError("SDK Mode is not enabled.")
         cmd_map = {
             "wakeup": enable_sdk_mode,
             "home": home,
-            "raise": move_arm,
-            "lower": move_arm,
-            "forward": move_arm_2,
-            "backward": move_arm_2,
+            "raise": move_arm_2,
+            "lower": move_arm_2,
+            "forward": move_arm,
+            "backward": move_arm,
             "tilt": move_wrist,
             "rotate": rotate_base,
             "grab": grab,

@@ -1,6 +1,6 @@
 # Robot Claw Firmware
 
-Inspired by the DJI Tello Drone SDK, this project aims to provide a similar, easy-to-use network-controlled experience for a robotic claw. The goal is to enable simple programming and interaction using clear, concise commands—making it accessible for both beginners and advanced users.
+Inspired by the DJI Tello Drone SDK, this project aims to provide a similar, easy-to-use network-controlled experience for a robotic claw. The goal is to enable simple programming and interaction using clear, concise commands—making it accessible for both beginners and advanced users. 
 
 ## Hardware
 
@@ -26,16 +26,19 @@ Inspired by the DJI Tello Drone SDK, this project aims to provide a similar, eas
 
 ## Command Reference
 
-| Command             | Description                               | Example           | Expected Response |
-|---------------------|-------------------------------------------|-------------------| -------------------|
-| `wakeup`            | Enter SDK mode                            | `wakeup`          | `OK`              |
-| `rotate <angle>`    | Rotate base to specified angle (0–180)    | `rotate 90`       | `OK`              |
-| `grab`              | Close the claw                            | `grab`            | `OK`              |
-| `release`           | Open the claw                             | `release`         | `OK`              |
-| `raise <angle>`     | Raise arm to specified angle (0–180)      | `raise 45`        | `OK`              |
-| `lower <angle>`     | Lower arm to specified angle (0–180)      | `lower 135`       | `OK`              |
-| `home`              | Move claw to home position                | `home`            | `OK`              |
-| `state`             | Get current state of the claw             | `state`           | `base:<angle>;arm:<angle>;wrist:<angle>;claw:<angle>` |
+| Command             | Description                                         | Example         | Expected Response                                      |
+|---------------------|-----------------------------------------------------|-----------------|--------------------------------------------------------|
+| `wakeup`            | Enter SDK mode                                      | `wakeup`        | `OK`                                                   |
+| `rotate <angle>`    | Rotate base to specified angle (0–180)              | `rotate 90`     | `OK`                                                   |
+| `grab`              | Close the claw                                      | `grab`          | `OK`                                                   |
+| `release`           | Open the claw                                       | `release`       | `OK`                                                   |
+| `raise <angle>`     | Raise arm to specified angle (0–180)                | `raise 45`      | `OK`                                                   |
+| `lower <angle>`     | Lower arm to specified angle (0–180)                | `lower 135`     | `OK`                                                   |
+| `home`              | Move claw to home position                          | `home`          | `OK`                                                   |
+| `state`             | Get current state of the claw                       | `state`         | `base:<angle>;arm:<angle>;wrist:<angle>;claw:<angle>`  |
+| `forward <angle>`   | Move claw forward by specified angle (0–180)        | `forward 45`    | `OK`                                                   |
+| `backward <angle>`  | Move claw backward by specified angle (0–180)       | `backward 45`   | `OK`                                                   |
+| `tilt <angle>`      | Tilt claw to specified angle (0–180)                | `tilt 90`       | `OK`                                                   |
 
 > **Note:**  
 > Replace `<angle>` with an integer between 0 and 180.
@@ -53,10 +56,13 @@ You can use Python's `socket` library to interact with the claw:
 import socket
 import time
 
+HOST = '192.168.4.1'
+PORT = 8889
+
 def send_command(command):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(2)
-    sock.sendto(command.encode(), ('192.168.4.1', 8889))
+    sock.sendto(command.encode(), (HOST, PORT))
     try:
         response, _ = sock.recvfrom(1024)
         decoded = response.decode()
@@ -75,11 +81,17 @@ time.sleep(1)
 
 **Device Logs**
 ```
-Connect to WiFi AP: Claw-70041df18f38
-Listening on 192.168.4.1:8889
-Received: wakeup from ('192.168.4.2', 58741)
-SDK Mode enabled. You can now send commands.
-Received: rotate 10 from ('192.168.4.2', 52958)
+19.905: INFO - Access Point started with SSID: Claw-70041df18f38
+19.908: INFO - Listening on 192.168.4.1:8889
+107.937: INFO - Received: wakeup from ('192.168.4.2', 50750)
+107.940: INFO - SDK Mode enabled.
+108.952: INFO - Received: home from ('192.168.4.2', 56377)
+108.961: INFO - All servos moved to home position.
+138.622: INFO - Received: rotate 45 from ('192.168.4.2', 50780)
+144.894: INFO - Received: rotate 90 from ('192.168.4.2', 61337)
+151.111: INFO - Received: rotate 180 from ('192.168.4.2', 51343)
+156.689: INFO - Received: rotate 0 from ('192.168.4.2', 65415)
+204.965: INFO - Received: forward 45 from ('192.168.4.2', 54692)
 ```
 ---
 
