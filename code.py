@@ -3,12 +3,10 @@ import socketpool
 import adafruit_logging as logging
 from adafruit_servokit import ServoKit
 
-# Setup Logging
 logger = logging.getLogger("ClawRobot")
 logger.setLevel(logging.INFO)
 
 
-# Custom exceptions
 class InvalidCommandError(Exception):
     pass
 
@@ -17,19 +15,29 @@ class InvalidAngleError(Exception):
     pass
 
 
-# Initialize ServoKit for 8 channels on PCA9685
 kit = ServoKit(channels=8)
-
-# Command definitions
-movement_commands = ["raise", "lower", "rotate", "forward", "backward", "tilt"]
-base_commands = ["wakeup", "grab", "release", "home", "state"]
-valid_commands = movement_commands + base_commands
 
 PORT = 8889
 SDK_MODE_ENABLED = False
 DEFAULT_RESPONSE = "OK"
 
-# WiFi AP setup
+COMPONENTS = {
+    "base": kit.servo[0],
+    "arm1": kit.servo[1],
+    "arm2": kit.servo[2],
+    "wrist": kit.servo[3],
+    "claw": kit.servo[4],
+}
+
+current_angles = {
+    "base": 90,
+    "arm1": 90,
+    "arm2": 90,
+    "wrist": 90,
+    "claw": 0,
+}
+
+
 mac = wifi.radio.mac_address
 ap_ssid = "Claw-" + "".join(f"{b:02x}" for b in mac)
 wifi.radio.start_ap(ssid=ap_ssid, password="", max_connections=1)
@@ -42,51 +50,16 @@ sock.bind((ip_addr, PORT))
 logger.info(f"Listening on {ip_addr}:{PORT}")
 
 
-BASE = kit.servo[0]
-ARM_L = kit.servo[1]
-ARM_R = kit.servo[2]
-CLAW = kit.servo[3]
-WRIST = kit.servo[4]
-
-
 def home():
-    BASE.angle = 90
-    ARM_L.angle = 90
-    ARM_R.angle = 90
-    WRIST.angle = 90
-    CLAW.angle = 0
+    for name, servo in COMPONENTS.items():
+        angle = 0 if name == "claw" else 90
+        servo.angle = angle
+        current_angles[name] = angle
     logger.info("All servos moved to home position.")
 
 
-def move_arm(angle):
-    ARM_L.angle = int(angle)
-
-
-def move_arm_2(angle):
-    ARM_R.angle = int(angle)
-
-
-def move_wrist(angle):
-    WRIST.angle = int(angle)
-
-
-def rotate_base(angle):
-    BASE.angle = int(angle)
-
-
-def grab():
-    CLAW.angle = 180
-
-
-def release():
-    CLAW.angle = 0
-
-
 def get_state():
-    return ";".join(
-        f"{name}:{kit.servo[idx].angle}"
-        for idx, name in enumerate(["base", "arm", "wrist", "claw"])
-    )
+    return ";".join(f"{name}:{current_angles[name]}" for name in COMPONENTS)
 
 
 def enable_sdk_mode():
@@ -95,71 +68,86 @@ def enable_sdk_mode():
     logger.info("SDK Mode enabled.")
 
 
-def validate_command(request):
-    parts = request.strip().split(" ")
-    cmd = parts[0].strip().lower()
-    angle = parts[1] if len(parts) > 1 else None
+def parse_command(request: str):
+    parts = request.lower().strip().split()
+    cmd = parts[0] if parts else ""
 
-    if cmd not in valid_commands:
-        raise InvalidCommandError(f"Invalid command: {cmd}")
+    if cmd in ("state", "wakeup", "home"):
+        return (cmd,)
+    
+    if cmd not in COMPONENTS:
+        raise InvalidCommandError(f"Unknown component: {cmd}")
+    action = parts[1] if len(parts) > 1 else None
 
-    if cmd in movement_commands and (
-        angle is None or not angle.isdigit() or not (int(angle) <= 180)
-    ):
-        raise InvalidAngleError(f"Invalid angle for command {cmd}: {angle}")
+    if cmd == "claw" and action in ("open", "close"):
+        angle = 180 if action == "open" else 0
+        return ("set", cmd, angle)
 
-    return cmd, angle
+    if action in ("set", "inc", "dec") and len(parts) == 3:
+        try:
+            val = int(parts[2])
+        except ValueError:
+            raise InvalidAngleError(f"Invalid angle value: {parts[2]}")
+        if not (0 <= val <= 180):
+            raise InvalidAngleError(f"Angle out of range: {val}")
+        return (action, cmd, val)
+
+    raise InvalidCommandError(
+        "Syntax error: use '<component> set|inc|dec <0 - 180>' or 'claw open|close' or 'state'"
+    )
+
+
+def execute_command(cmd_tuple):
+    typ = cmd_tuple[0]
+    if typ == "state":
+        return get_state()
+
+    _, comp, val = cmd_tuple
+    servo = COMPONENTS[comp]
+
+    if typ == "set":
+        new_angle = val
+    else:
+        delta = val if typ == "inc" else -val
+        new_angle = max(0, min(180, current_angles[comp] + delta))
+
+    servo.angle = new_angle
+    current_angles[comp] = new_angle
+    logger.info(f"{comp} {typ} → {new_angle}")
 
 
 def encode_response(res):
-    # string.decode() is not available in CircuitPython Espressif boards
-    # so we use bytearray
     resp = bytearray()
     resp.extend(str(res))
     return resp
 
 
-# Main Loop
 udp_buffer = bytearray(1024)
 while True:
     n_bytes, addr = sock.recvfrom_into(udp_buffer)
-    datastr = bytes(udp_buffer[:n_bytes]).decode().strip()
-    logger.info(f"Received: {datastr} from {addr}")
+    data = bytes(udp_buffer[:n_bytes]).decode().strip()
+    logger.info(f"Received: {data} from {addr}")
 
     try:
-        cmd, angle = validate_command(datastr)
-        angle = int(angle) if angle is not None else None
-
-        logger.info(f"Executing command: {cmd} with angle: {angle}")
-
-        if not SDK_MODE_ENABLED and cmd != "wakeup":
+        if not SDK_MODE_ENABLED:
             raise InvalidCommandError("SDK Mode is not enabled.")
-        cmd_map = {
-            "wakeup": enable_sdk_mode,
-            "home": home,
-            "raise": move_arm_2,
-            "lower": move_arm_2,
-            "forward": move_arm,
-            "backward": move_arm,
-            "tilt": move_wrist,
-            "rotate": rotate_base,
-            "grab": grab,
-            "release": release,
-            "state": get_state,
-        }
-        resp = None
-        if cmd in movement_commands:
-            resp = cmd_map[cmd](angle)
-        else:
-            resp = cmd_map[cmd]()
 
-        res = encode_response(resp if resp is not None else DEFAULT_RESPONSE)
-        sock.sendto(res, addr)
+        parsed = parse_command(data)
+
+        result = DEFAULT_RESPONSE
+        if parsed[0] == "wakeup":
+            enable_sdk_mode()
+        elif parsed[0] == "home":
+            home()
+        else:
+            result = execute_command(parsed)
+
+        sock.sendto(encode_response(result), addr)
+
     except (InvalidCommandError, InvalidAngleError) as e:
         logger.error(e)
-        res = encode_response(e)
-        sock.sendto(res, addr)
+        sock.sendto(encode_response(f"Error: {e}"), addr)
+
     except Exception as e:
         logger.exception(e)
-        res = encode_response(e)
-        sock.sendto(res, addr)
+        sock.sendto(encode_response(f"Error: {e}"), addr)
