@@ -134,7 +134,6 @@ while True:
 
         parsed = parse_command(data)
 
-        result = DEFAULT_RESPONSE
         if parsed[0] == "wakeup":
             enable_sdk_mode()
         elif parsed[0] == "home":
@@ -142,6 +141,7 @@ while True:
         else:
             result = execute_command(parsed)
 
+        result = result if result is not None else DEFAULT_RESPONSE
         sock.sendto(encode_response(result), addr)
 
     except (InvalidCommandError, InvalidAngleError) as e:
